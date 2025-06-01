@@ -1,31 +1,30 @@
-# my_tide_app/Dockerfile
+# Use a slim Python image as a base
+FROM python:3.12-slim-buster
 
-# Use an official Python runtime as a parent image
-# python:3.9-slim-buster provides a lean Debian-based Python environment
-FROM python:3.9-slim-buster
-
-# Set the working directory in the container
+# Set the working directory inside the container
 WORKDIR /app
 
-# Copy the requirements file into the working directory
+# had to upgrade to build essentials to get it to run rather than a stripped down python version
+# numpys and pandas can be chunky
+RUN apt-get update && \
+    apt-get install -y build-essential python3-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy the requirements file into the container
 COPY requirements.txt .
 
-# Install any needed packages specified in requirements.txt
-# --no-cache-dir: Don't store package build artifacts in cache
-# -r: Install from requirements file
+# Install Python dependencies from the requirements file
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the entire application code into the container
-# The .dockerignore file (optional) can be used to exclude files like .git, .env
+
 COPY . .
 
-# Expose port 5000 which the app will run on
+
+ENV FLASK_APP=app.py
+
+# Expose the port your Flask app runs on
 EXPOSE 5000
 
 # Command to run the application using Gunicorn
-# gunicorn: The WSGI HTTP server
-# -w 4: Run with 4 worker processes (adjust based on CPU cores)
-# -b 0.0.0.0:5000: Bind to all network interfaces on port 5000
-# app:app: The 'app' module (app.py) and the 'app' Flask instance within it
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "app:app"]
-
+# Adjust workers as needed based on your Lightsail instance size
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
