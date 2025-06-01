@@ -1,14 +1,14 @@
-name: Deploy to my lightsail instance
+name: Deploy to Lightsail Instance
 
 on:
   push:
     branches:
-      - main
+      - main # Trigger on pushes to the main branch
 
 env:
   DOCKER_IMAGE_NAME: my-tide-app
-  DOCKERHUB_USERNAME: scottstef
-  CONTAINER_NAME: tide-container
+  DOCKERHUB_USERNAME: your-dockerhub-username # <--- CHANGE THIS to your Docker Hub username
+  CONTAINER_NAME: tide-container # Name of your running container on Lightsail
 
 jobs:
   deploy:
@@ -18,41 +18,48 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Docker Build
-      uses: docker/setup-buildx-action@v3
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3 # Required for the build-push action
 
-    - name: Log into Docker Hub
+    - name: Log in to Docker Hub
       uses: docker/login-action@v3
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Build and push image to DH
-      run: 
-        docker build -t ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }} .
-        docker push ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
-        docker tag ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }} ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
-        docker push ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+    - name: Build and push Docker image to Docker Hub
+      uses: docker/build-push-action@v5 # <--- NEW ACTION HERE
+      with:
+        context: . # Build context is the current directory
+        push: true # Push the image to the registry
+        tags: | # Define multiple tags for the image
+          ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+          ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+        # Add cache-from and cache-to for faster builds if you have a registry cache setup
 
     - name: Deploy via SSH to Lightsail Instance
-      uses: appleboy/ssh-action@master # A popular action for SSH
+      uses: appleboy/ssh-action@master
       with:
-        host: ${{ secrets.LIGHTSAIL_SSH_HOST }}        # Your Lightsail Public IP as a GitHub Secret
-        username: bitnami                   # Your Lightsail instance username
-        key: ${{ secrets.LIGHTSAIL_SSH_PRIVATE_KEY }}  # Your Lightsail instance's SSH private key as a GitHub Secret
+        host: ${{ secrets.SSH_HOST }}
+        username: bitnami
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login --username ${{ env.DOCKERHUB_USERNAME }} --password-stdin
-
-          # Pull the new image
-          docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+          # Pull the new image from Docker Hub (using the 'latest' tag for simplicity here)
+          # Alternatively, use ${{ github.sha }} for specific versioning:
+          # docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+          docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
 
           # Stop and remove the old container (if running)
           docker stop ${{ env.CONTAINER_NAME }} || true
           docker rm ${{ env.CONTAINER_NAME }} || true
 
-          # Run the new container
+          # Run the new container, passing AWS credentials for Secrets Manager access
+          # These credentials (AWS_ACCESS_KEY_ID_APP, AWS_SECRET_ACCESS_KEY_APP)
+          # should be for the IAM user created by create_iam_user.py
           docker run -p 5000:5000 -d --name ${{ env.CONTAINER_NAME }} \
-            -e PIRATE_WEATHER_API_KEY="${{ secrets.PIRATE_WEATHER_API_KEY_GH }}" \
-            -e OPENCAGE_API_KEY="${{ secrets.OPENCAGE_API_KEY_GH }}" \
-            -e FLASK_SECRET_KEY="${{ secrets.FLASK_SECRET_KEY_GH }}" \
-            ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+            -e AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID_APP }}" \
+            -e AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY_APP }}" \
+            -e AWS_DEFAULT_REGION="${{ secrets.AWS_DEFAULT_REGION }}" \
+            ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+            # Alternatively, use ${{ github.sha }} for specific versioning:
+            # ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
