@@ -28,11 +28,11 @@ jobs:
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
     - name: Build and push Docker image to Docker Hub
-      uses: docker/build-push-action@v5 # <--- NEW ACTION HERE
+      uses: docker/build-push-action@v5
       with:
-        context: . # Build context is the current directory
-        push: true # Push the image to the registry
-        tags: | # Define multiple tags for the image
+        context: ./my_tide_app # <--- CHANGED: Path to your app's directory containing Dockerfile
+        push: true
+        tags: |
           ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
           ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
         # Add cache-from and cache-to for faster builds if you have a registry cache setup
@@ -45,8 +45,6 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           # Pull the new image from Docker Hub (using the 'latest' tag for simplicity here)
-          # Alternatively, use ${{ github.sha }} for specific versioning:
-          # docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
           docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
 
           # Stop and remove the old container (if running)
@@ -54,12 +52,8 @@ jobs:
           docker rm ${{ env.CONTAINER_NAME }} || true
 
           # Run the new container, passing AWS credentials for Secrets Manager access
-          # These credentials (AWS_ACCESS_KEY_ID_APP, AWS_SECRET_ACCESS_KEY_APP)
-          # should be for the IAM user created by create_iam_user.py
           docker run -p 5000:5000 -d --name ${{ env.CONTAINER_NAME }} \
             -e AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID_APP }}" \
             -e AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY_APP }}" \
             -e AWS_DEFAULT_REGION="${{ secrets.AWS_DEFAULT_REGION }}" \
             ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
-            # Alternatively, use ${{ github.sha }} for specific versioning:
-            # ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
