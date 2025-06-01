@@ -3,12 +3,11 @@ name: Deploy to Lightsail Instance
 on:
   push:
     branches:
-      - main
+      - main # Trigger on pushes to the main branch
 
 env:
   DOCKER_IMAGE_NAME: my-tide-app
-  
-  CONTAINER_NAME: tide-container 
+  CONTAINER_NAME: tide-container # Name of your running container on Lightsail
 
 jobs:
   deploy:
@@ -24,7 +23,7 @@ jobs:
     - name: Log in to Docker Hub
       uses: docker/login-action@v3
       with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }} 
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
     - name: Build and push Docker image to Docker Hub
@@ -33,8 +32,8 @@ jobs:
         context: ./my_tide_app
         push: true
         tags: |
-          ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }} # Uses the secret for tagging
-          ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest # Uses the secret for tagging
+          ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
+          ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
 
     - name: Deploy via SSH to Lightsail Instance
       uses: appleboy/ssh-action@master
@@ -43,7 +42,8 @@ jobs:
         username: bitnami
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-              
+          # Pull the new image from Docker Hub (using the 'latest' tag for simplicity here)
+          # Uses the secret for pulling
           docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
 
           # Stop and remove the old container (if running)
