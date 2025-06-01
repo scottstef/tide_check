@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tide and Weather Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            color: #334155;
+        }
+        .container {
+            max-width: 960px;
+            margin: 2rem auto;
+            padding: 1.5rem;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background-color: #3b82f6;
+            color: white;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .btn:hover {
+            background-color: #2563eb;
+        }
+        .flash-message {
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .flash-message.info {
+            background-color: #e0f2fe;
+            color: #0369a1;
+            border: 1px solid #7dd3fc;
+        }
+        .flash-message.warning {
+            background-color: #fffbeb;
+            color: #b45309;
+            border: 1px solid #fcd34d;
+        }
+        .flash-message.error { /* Added error styling */
+            background-color: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #fca5a5;
+        }
+        .table-container {
+            overflow-x: auto;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0;
+            min-width: 900px; /* Increased min-width for more columns */
+        }
+        .table th, .table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .table th {
+            background-color: #f8fafc;
+            font-weight: 600;
+            color: #475569;
+            white-space: nowrap;
+        }
+        .table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        /* Custom row styling for alternating hourly, high, and low tides */
+        .row-hourly-odd {
+            background-color: #f1f5f9; /* Light gray */
+        }
+        .row-hourly-even {
+            background-color: #ffffff; /* White */
+        }
+        .row-high-tide {
+            background-color: #fee2e2; /* Light red/pink */
+            font-weight: bold;
+            border-left: 4px solid #ef4444; /* Red border */
+        }
+        .row-low-tide {
+            background-color: #e0f2fe; /* Light blue */
+            font-weight: bold;
+            border-left: 4px solid #3b82f6; /* Blue border */
+        }
+        h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+            color: #1e293b;
+        }
+        p {
+            margin-bottom: 0.5rem;
+        }
+        .weather-icon {
+            font-size: 1.2em; /* Adjust emoji size */
+            margin-right: 0.3em;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4">
+    <div class="container">
+        <header class="header">
+            <h1 class="text-3xl font-bold text-gray-800">Tide and Weather Tracker</h1>
+            <p class="text-gray-600">Get tide predictions and weather reports for coastal locations.</p>
+        </header>
+
+        <form method="POST" action="/" class="mb-8 p-6 bg-blue-50 rounded-lg shadow-inner">
+            <div class="form-group">
+                <label for="zip_code" class="block text-gray-700 text-sm font-bold mb-2">Enter ZIP Code:</label>
+                <input type="text" id="zip_code" name="zip_code" class="form-control focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 21871">
+            </div>
+            <button type="submit" class="btn w-full">Get Tide & Weather</button>
+        </form>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-4">
+                    {% for category, message in messages %}
+                        <div class="flash-message {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <h2 class="text-2xl font-semibold text-gray-800 mb-4">Results for {{ station_name }}</h2>
+
+        <div class="tide-info mb-6 p-6 bg-gray-50 rounded-lg shadow-sm">
+            {{ next_tide_info | safe }}
+        </div>
+
+        <div class="combined-forecast mb-6 p-6 bg-gray-50 rounded-lg shadow-sm">
+            <h3>Combined Tide and Hourly Weather Forecast</h3>
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Tide Event</th>
+                            <th>Tide Height (ft)</th>
+                            <th>Weather</th>
+                            <th>Temp (°F)</th>
+                            <th>Precip Prob (%)</th>
+                            <th>Wind (mph)</th>
+                            <th>Humidity (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in combined_forecast_data %}
+                        <tr class="{{ row.row_class }}">
+                            <td>{{ row.Time }}</td>
+                            <td>{{ row.Tide_Event }}</td>
+                            <td>{{ row.Tide_Height }}</td>
+                            <td><span class="weather-icon">{{ row.Weather_Icon | safe }}</span> {{ row.Weather_Summary }}</td>
+                            <td>{{ row.Temp }}</td>
+                            <td>{{ row.Precip_Prob }}</td>
+                            <td>{{ row.Wind }}</td>
+                            <td>{{ row.Humidity }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if not combined_forecast_data %}
+                        <tr><td colspan="8" class="text-center py-4 text-gray-500">No combined forecast data available.</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
